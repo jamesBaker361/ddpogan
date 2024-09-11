@@ -55,7 +55,7 @@ def main(args):
     
     width,height=row["image"].size
 
-    data=[row["image"] for row in data]
+    pretrain_image_list=[row["image"] for row in data]
 
     proto_discriminator=Discriminator(64,3,height,1)
 
