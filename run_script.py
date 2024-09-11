@@ -55,7 +55,7 @@ def main(args):
     
     width,height=row["image"].size
 
-    pretrain_image_list=[row["image"] for row in data]
+    image_list=[row["image"] for row in data]
 
     proto_discriminator=Discriminator(64,3,height,1)
 
@@ -123,10 +123,10 @@ def main(args):
     )
     print("len trainable parameters",len(pipeline.get_trainable_layers()))
 
-    data=[composed_trans(image) for image in data]
+    composed_data=[composed_trans(row["image"]) for row in data]
     batched_data=[]
-    for j in range(0,len(data),args.discriminator_batch_size):
-        batched_data.append(data[j:j+args.discriminator_batch_size])
+    for j in range(0,len(composed_data),args.discriminator_batch_size):
+        batched_data.append(composed_data[j:j+args.discriminator_batch_size])
     batched_data=[torch.stack(batch) for batch in batched_data]
 
     if args.pretrain_epochs>0:
@@ -135,19 +135,19 @@ def main(args):
         _pretrain_prompt_list=[]
         for x in range(args.pretrain_steps_per_epoch):
             if x%2==0:
-                _pretrain_image_list.append(pretrain_image_list[x% len(pretrain_image_list)])
+                _pretrain_image_list.append(image_list[x% len(image_list)])
             else:
-                _pretrain_image_list.append(pretrain_image_list[x% len(pretrain_image_list)].transpose(Image.FLIP_LEFT_RIGHT))
+                _pretrain_image_list.append(image_list[x% len(image_list)].transpose(Image.FLIP_LEFT_RIGHT))
             _pretrain_prompt_list.append(entity_name)
         pretrain_prompt_list=_pretrain_prompt_list
-        pretrain_image_list=_pretrain_image_list
-        assert len(pretrain_image_list)==len(pretrain_prompt_list), f"error {len(pretrain_image_list)} != {len(pretrain_prompt_list)}"
-        assert len(pretrain_image_list)==args.pretrain_steps_per_epoch, f"error {len(pretrain_image_list)} != {args.pretrain_steps_per_epoch}"
+        image_list=_pretrain_image_list
+        assert len(image_list)==len(pretrain_prompt_list), f"error {len(image_list)} != {len(pretrain_prompt_list)}"
+        assert len(image_list)==args.pretrain_steps_per_epoch, f"error {len(image_list)} != {args.pretrain_steps_per_epoch}"
         pretrain_optimizer=trainer._setup_optimizer([p for p in pipeline.sd_pipeline.unet.parameters() if p.requires_grad])
         pipeline.sd_pipeline=train_unet_function(
             pipeline.sd_pipeline,
             args.pretrain_epochs,
-            pretrain_image_list,
+            image_list,
             pretrain_prompt_list,
             pretrain_optimizer,
             False,
