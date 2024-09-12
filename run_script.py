@@ -14,6 +14,7 @@ from PIL import Image
 from torchvision import transforms
 from static_globals import *
 from proto_gan_diffaug import DiffAugment
+import wandb
 
 parser=argparse.ArgumentParser()
 
@@ -35,6 +36,7 @@ parser.add_argument("--ddpo_batch_size",type=int,default=1)
 parser.add_argument("--pretrain_batch_size",type=int,default=8)
 parser.add_argument("--samples_per_epoch",type=int,default=8)
 parser.add_argument("--entity_name",type=str,default="league_of_legends_character")
+parser.add_argument("--image_per_prompt",default=4,type=int)
 
 evaluation_prompt_list=[
     " {} going for a walk ",
@@ -183,14 +185,29 @@ def main(args):
                 trainer.train(retain_graph=False,normalize_rewards=True)
         
 
-    evaluation_image_list=[
-        pipeline.sd_pipeline(evaluation_prompt.format(entity_name),
-            num_inference_steps=args.num_inference_steps,
-            negative_prompt=NEGATIVE,
-            width=width,
-            height=height,
-            safety_checker=None).images[0] for evaluation_prompt in evaluation_prompt_list
-    ]
+    evaluation_image_list=[]
+    for j,evaluation_prompt in enumerate(evaluation_prompt_list):
+        for n in range(args.image_per_prompt):
+            generator=torch.Generator()
+            generator=generator.manual_seed(n)
+            image=pipeline.sd_pipeline(evaluation_prompt.format(entity_name),
+                num_inference_steps=args.num_inference_steps,
+                negative_prompt=NEGATIVE,
+                width=width,
+                height=height,
+                generator=generator,
+                safety_checker=None).images[0]
+            evaluation_image_list.append(image)
+            try:
+                accelerator.log({
+                    f"{j}_{n}":wandb.Image(image)
+                })
+            except:
+                temp="temp.png"
+                image.save(temp)
+                accelerator.log({
+                    f"{j}_{n}":wandb.Image(temp)
+                })
 
     #evaluation: find most similar image in dataset and compare clip/vit/content/style similarities
     #evaluation: find average clip/style/similarities
