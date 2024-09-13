@@ -72,7 +72,10 @@ def main(args):
 
     if args.load_pretrained_disc:
 
-        ckpt = torch.load(args.pretrained_proto_gan)
+        try:
+            ckpt = torch.load(args.pretrained_proto_gan)
+        except RuntimeError:
+            ckpt = torch.load(args.pretrained_proto_gan,map_location=torch.device('cpu'))
         proto_discriminator.load_state_dict(ckpt['d'])
 
     proto_discriminator=proto_discriminator.to(accelerator.device)
