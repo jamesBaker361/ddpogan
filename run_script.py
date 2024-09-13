@@ -147,16 +147,12 @@ def main(args):
     if args.pretrain_epochs>0:
         #pretrain_image_list=[src_image] *pretrain_steps_per_epoch
         _pretrain_image_list=[]
-        _pretrain_prompt_list=[]
         for x in range(args.pretrain_steps_per_epoch):
             if x%2==0:
                 _pretrain_image_list.append(image_list[x% len(image_list)])
             else:
                 _pretrain_image_list.append(image_list[x% len(image_list)].transpose(Image.FLIP_LEFT_RIGHT))
-            _pretrain_prompt_list.append(entity_name)
-        pretrain_prompt_list=_pretrain_prompt_list
         image_list=_pretrain_image_list
-        assert len(image_list)==len(pretrain_prompt_list), f"error {len(image_list)} != {len(pretrain_prompt_list)}"
         pretrain_optimizer=trainer._setup_optimizer([p for p in pipeline.sd_pipeline.unet.parameters() if p.requires_grad])
         pipeline.sd_pipeline=train_unet_single_prompt(
             pipeline.sd_pipeline,
