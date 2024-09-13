@@ -25,6 +25,7 @@ parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max
 parser.add_argument("--pretrain_epochs",type=int,default=1)
 parser.add_argument("--adversarial_epochs",type=int,default=10)
 parser.add_argument("--discriminator_batch_size",type=int,default=8)
+parser.add_argument("--pretrain_steps_per_epoch",default=4,type=int)
 parser.add_argument("--load_pretrained_disc",action="store_true")
 parser.add_argument("--output_dir",type=str,default="/scratch/jlb638/ddpogan/experiment")
 parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/ddpogan_images/experiment")
@@ -139,6 +140,10 @@ def main(args):
     print("len trainable parameters",len(pipeline.get_trainable_layers()))
 
     composed_data=[composed_trans(row["splash"]) for row in data]
+    i=0
+    while len(composed_data)%args.discriminator_batch_size !=0:
+        composed_data.append[i]
+        i+=1
     batched_data=[]
     for j in range(0,len(composed_data),args.discriminator_batch_size):
         batched_data.append(composed_data[j:j+args.discriminator_batch_size])
@@ -146,13 +151,6 @@ def main(args):
 
     if args.pretrain_epochs>0:
         #pretrain_image_list=[src_image] *pretrain_steps_per_epoch
-        _pretrain_image_list=[]
-        for x in range(args.pretrain_steps_per_epoch):
-            if x%2==0:
-                _pretrain_image_list.append(image_list[x% len(image_list)])
-            else:
-                _pretrain_image_list.append(image_list[x% len(image_list)].transpose(Image.FLIP_LEFT_RIGHT))
-        image_list=_pretrain_image_list
         pretrain_optimizer=trainer._setup_optimizer([p for p in pipeline.sd_pipeline.unet.parameters() if p.requires_grad])
         pipeline.sd_pipeline=train_unet_single_prompt(
             pipeline.sd_pipeline,
