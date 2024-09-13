@@ -14,6 +14,7 @@ from PIL import Image
 from torchvision import transforms
 from static_globals import *
 from proto_gan_diffaug import DiffAugment
+from proto_gan_training import train_d
 import wandb
 
 parser=argparse.ArgumentParser()
@@ -37,6 +38,8 @@ parser.add_argument("--pretrain_batch_size",type=int,default=8)
 parser.add_argument("--samples_per_epoch",type=int,default=8)
 parser.add_argument("--entity_name",type=str,default="league_of_legends_character")
 parser.add_argument("--image_per_prompt",default=4,type=int)
+parser.add_argument("--nlr",type=float,default=0.0002)
+parser.add_argument("--nbeta1",type=float,default=0.5)
 
 evaluation_prompt_list=[
     " {} going for a walk ",
@@ -67,6 +70,8 @@ def main(args):
         proto_discriminator.load_state_dict(ckpt['d'])
 
     proto_discriminator=proto_discriminator.to(accelerator.device)
+
+    optimizerD = torch.optim.Adam(proto_discriminator.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
     transform_list = [
             transforms.Resize((width,height)),
@@ -109,7 +114,12 @@ def main(args):
     def prompt_fn():
         return entity_name,{}
 
+    image_cache=[]
+
     def reward_fn(images, prompts, epoch,prompt_metadata):
+        global image_cache
+        image_cache+=images
+        print("len image_cache")
         return [get_proto_gan_score(image) for image in images],{}
                     
 
@@ -169,20 +179,38 @@ def main(args):
     policy = 'color,translation,cutout'
     print(f"acceleerate device {trainer.accelerator.device}")
     for e in range(args.adversarial_epochs):
+        start=time.time()
+        err_dr_list=[]
+        fake_err_dr_list=[]
         for _step,real_images in enumerate(batched_data):
             real_images=real_images.to(accelerator.device)
 
             real_images = DiffAugment(real_images, policy=policy)
-            fake_images=[pipeline.sd_pipeline(entity_name,
+            '''fake_images=[pipeline.sd_pipeline(entity_name,
                                                 num_inference_steps=args.num_inference_steps,
                                                 negative_prompt=NEGATIVE,
                                                 width=width,
                                                 height=height,
-                                                safety_checker=None).images[0] for _ in range(len(args.discriminator_batch_size)) ]
-            fake_images=[composed_trans(image) for image in fake_images]
-            fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
+                                                safety_checker=None).images[0] for _ in range(len(args.discriminator_batch_size)) ]'''
+            
+            image_cache=[]
             with accelerator.autocast():
                 trainer.train(retain_graph=False,normalize_rewards=True)
+            fake_images=image_cache
+            fake_images=[composed_trans(image) for image in fake_images]
+            fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
+            err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
+            fake_err_dr=train_d(proto_discriminator, [fi.detach() for fi in fake_images], label="fake")
+
+            err_dr_list.append(err_dr)
+            fake_err_dr_list.append(fake_err_dr)
+            optimizerD.step()
+        end=time.time()
+        print(f"epoch {e} ended after {end-start} seconds = {(end-start)/3600} hours")
+
+
+
+
         
 
     evaluation_image_list=[]
