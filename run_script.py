@@ -41,6 +41,8 @@ parser.add_argument("--image_per_prompt",default=4,type=int)
 parser.add_argument("--nlr",type=float,default=0.0002)
 parser.add_argument("--nbeta1",type=float,default=0.5)
 
+image_cache=[]
+
 evaluation_prompt_list=[
     " {} going for a walk ",
     " {} reading a book ",
@@ -51,6 +53,8 @@ evaluation_prompt_list=[
 
 
 def main(args):
+    global image_cache
+    
     accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision)
     accelerator.init_trackers(project_name=args.project_name,config=vars(args))
 
@@ -114,7 +118,7 @@ def main(args):
     def prompt_fn():
         return entity_name,{}
 
-    image_cache=[]
+    
 
     def reward_fn(images, prompts, epoch,prompt_metadata):
         global image_cache
