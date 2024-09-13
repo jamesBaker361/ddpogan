@@ -8,7 +8,7 @@ from datasets import load_dataset
 import torch
 from experiment_helpers.better_ddpo_pipeline import BetterDefaultDDPOStableDiffusionPipeline
 from experiment_helpers.better_ddpo_trainer import BetterDDPOTrainer,get_image_sample_hook
-from experiment_helpers.training import train_unet as train_unet_function
+from experiment_helpers.training import train_unet, train_unet_single_prompt
 from trl import DDPOConfig
 from PIL import Image
 from torchvision import transforms
@@ -23,7 +23,6 @@ parser.add_argument("--mixed_precision",type=str,default="no")
 parser.add_argument("--project_name",type=str,default="evaluation-creative")
 parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max_plus")
 parser.add_argument("--pretrain_epochs",type=int,default=1)
-parser.add_argument("--pretrain_steps_per_epoch",type=int,default=30)
 parser.add_argument("--adversarial_epochs",type=int,default=10)
 parser.add_argument("--discriminator_batch_size",type=int,default=8)
 parser.add_argument("--load_pretrained_disc",action="store_true")
@@ -160,11 +159,11 @@ def main(args):
         assert len(image_list)==len(pretrain_prompt_list), f"error {len(image_list)} != {len(pretrain_prompt_list)}"
         assert len(image_list)==args.pretrain_steps_per_epoch, f"error {len(image_list)} != {args.pretrain_steps_per_epoch}"
         pretrain_optimizer=trainer._setup_optimizer([p for p in pipeline.sd_pipeline.unet.parameters() if p.requires_grad])
-        pipeline.sd_pipeline=train_unet_function(
+        pipeline.sd_pipeline=train_unet_single_prompt(
             pipeline.sd_pipeline,
             args.pretrain_epochs,
             image_list,
-            pretrain_prompt_list,
+            entity_name,
             pretrain_optimizer,
             False,
             "prior",
@@ -172,7 +171,7 @@ def main(args):
             1.0,
             entity_name,
             trainer.accelerator,
-            args.pretrain_steps_per_epoch,
+            args.num_inference_steps,
             0.0,
             True
         )
