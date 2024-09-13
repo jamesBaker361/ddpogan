@@ -61,9 +61,9 @@ def main(args):
     for row in data:
         break
     
-    width,height=row["image"].size
+    width,height=row["splash"].size
 
-    image_list=[row["image"] for row in data]
+    image_list=[row["splash"] for row in data]
 
     proto_discriminator=Discriminator(64,3,height,1)
 
