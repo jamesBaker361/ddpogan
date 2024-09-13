@@ -53,6 +53,8 @@ evaluation_prompt_list=[
 
 
 def main(args):
+    for d in [args.output_dir, args.image_dir]:
+        os.makedirs(d,exist_ok=True)
     global image_cache
     
     accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision)
