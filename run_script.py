@@ -138,7 +138,7 @@ def main(args):
     )
     print("len trainable parameters",len(pipeline.get_trainable_layers()))
 
-    composed_data=[composed_trans(row["image"]) for row in data]
+    composed_data=[composed_trans(row["splash"]) for row in data]
     batched_data=[]
     for j in range(0,len(composed_data),args.discriminator_batch_size):
         batched_data.append(composed_data[j:j+args.discriminator_batch_size])
