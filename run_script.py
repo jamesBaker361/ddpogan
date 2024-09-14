@@ -3,7 +3,7 @@ import argparse
 from experiment_helpers.gpu_details import print_details
 from accelerate import Accelerator
 import time
-from proto_gan_models import Discriminator
+from proto_gan_models import Discriminator,weights_init
 from datasets import load_dataset
 import torch
 from experiment_helpers.better_ddpo_pipeline import BetterDefaultDDPOStableDiffusionPipeline
@@ -14,14 +14,17 @@ from PIL import Image
 from torchvision import transforms
 from static_globals import *
 from proto_gan_diffaug import DiffAugment
+from peft.utils import get_peft_model_state_dict
 from proto_gan_training import train_d
 import wandb
+from safetensors.torch import save_model
 
 parser=argparse.ArgumentParser()
 
 parser.add_argument("--mixed_precision",type=str,default="no")
 parser.add_argument("--project_name",type=str,default="evaluation-creative")
 parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max_plus")
+parser.add_argument("--hf_repo",type=str,default="jlbaker361/ddpo-gan")
 parser.add_argument("--pretrain_epochs",type=int,default=1)
 parser.add_argument("--adversarial_epochs",type=int,default=10)
 parser.add_argument("--discriminator_batch_size",type=int,default=8)
@@ -40,6 +43,8 @@ parser.add_argument("--entity_name",type=str,default="league_of_legends_characte
 parser.add_argument("--image_per_prompt",default=4,type=int)
 parser.add_argument("--nlr",type=float,default=0.0002)
 parser.add_argument("--nbeta1",type=float,default=0.5)
+parser.add_argument("--image_size",type=int,default=512)
+parser.add_argument("--save_interval",type=int,default=10)
 
 image_cache=[]
 
@@ -66,9 +71,12 @@ def main(args):
     
     width,height=row["splash"].size
 
-    image_list=[row["splash"] for row in data]
+    print("width,height",width,height )
 
-    proto_discriminator=Discriminator(64,3,height,1)
+    image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
+
+    proto_discriminator=Discriminator(64,3,args.image_size,8)
+    proto_discriminator.apply(weights_init)
 
     if args.load_pretrained_disc:
 
@@ -179,7 +187,7 @@ def main(args):
     pipeline.sd_pipeline.scheduler.alphas_cumprod=pipeline.sd_pipeline.scheduler.alphas_cumprod.to("cpu")
     policy = 'color,translation,cutout'
     print(f"acceleerate device {trainer.accelerator.device}")
-    for e in range(args.adversarial_epochs):
+    for e in range(1,args.adversarial_epochs+1):
         start=time.time()
         err_dr_list=[]
         fake_err_dr_list=[]
@@ -208,6 +216,13 @@ def main(args):
             optimizerD.step()
         end=time.time()
         print(f"epoch {e} ended after {end-start} seconds = {(end-start)/3600} hours")
+        if e % args.save_interval == 0 or e == args.adversarial_epoch:
+            torch.save({'d':proto_discriminator.state_dict(),
+                        'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
+            unet_lora_layers = get_peft_model_state_dict(pipeline.sd_pipeline.unet)
+            pipeline.sd_pipeline.save_lora_weights(args.save_dir,unet_lora_layers)
+            pipeline.sd_pipeline.save_pretrained(args.output_dir,push_to_hub=True, repo_id=args.hf_repo)
+            
 
 
 
