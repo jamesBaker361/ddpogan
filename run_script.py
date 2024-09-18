@@ -148,7 +148,7 @@ def main(args):
         pipeline,
         image_samples_hook,
         entity_name,
-        height
+        args.image_size
     )
     print("len trainable parameters",len(pipeline.get_trainable_layers()))
 
