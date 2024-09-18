@@ -46,6 +46,7 @@ parser.add_argument("--nbeta1",type=float,default=0.5)
 parser.add_argument("--image_size",type=int,default=512)
 parser.add_argument("--save_interval",type=int,default=10)
 parser.add_argument("--disc_batch_size",type=int,default=8)
+parser.add_argument("--diffusion_start",type=int,default=0,help="how many adversarial epochs to wait before training ddpo")
 
 image_cache=[]
 
@@ -205,10 +206,19 @@ def main(args):
                                                 height=height,
                                                 safety_checker=None).images[0] for _ in range(len(args.discriminator_batch_size)) ]'''
             
-            image_cache=[]
-            with accelerator.autocast():
-                trainer.train(retain_graph=False,normalize_rewards=True)
-            fake_images=image_cache
+            if e>=args.diffusion_start:
+                image_cache=[]
+                with accelerator.autocast():
+                    trainer.train(retain_graph=False,normalize_rewards=True)
+                fake_images=image_cache
+            else:
+                fake_images=[]
+                for i in range(args.disc_batch_size):
+                    prompt,{}=prompt_fn()
+                    fake_images.append(pipeline.sd_pipeline(prompt,
+                        height=args.image_size,
+                        width=args.image_size,num_inference_steps=args.num_inference_steps,
+                        negative_prompt=NEGATIVE,safety_checker=None).images[0])
             fake_images=[composed_trans(image) for image in fake_images]
             fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
             err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
