@@ -226,7 +226,7 @@ def main(args):
             fake_images=DiffAugment(fake_images,policy=policy)
             print(fake_images.size())
             err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
-            fake_err_dr=train_d(proto_discriminator, [fi.detach() for fi in fake_images], label="fake")
+            fake_err_dr=train_d(proto_discriminator, fake_images, label="fake")
 
             err_dr_list.append(err_dr)
             fake_err_dr_list.append(fake_err_dr)
