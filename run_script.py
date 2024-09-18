@@ -214,7 +214,7 @@ def main(args):
             else:
                 fake_images=[]
                 for i in range(args.disc_batch_size):
-                    prompt,{}=prompt_fn()
+                    prompt,_=prompt_fn()
                     fake_images.append(pipeline.sd_pipeline(prompt,
                         height=args.image_size,
                         width=args.image_size,num_inference_steps=args.num_inference_steps,
