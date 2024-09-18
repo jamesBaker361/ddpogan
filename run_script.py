@@ -22,7 +22,7 @@ from safetensors.torch import save_model
 parser=argparse.ArgumentParser()
 
 parser.add_argument("--mixed_precision",type=str,default="no")
-parser.add_argument("--project_name",type=str,default="evaluation-creative")
+parser.add_argument("--project_name",type=str,default="ddpogan")
 parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max_plus")
 parser.add_argument("--hf_repo",type=str,default="jlbaker361/ddpo-gan")
 parser.add_argument("--pretrain_epochs",type=int,default=1)
