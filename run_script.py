@@ -137,7 +137,7 @@ def main(args):
     def reward_fn(images, prompts, epoch,prompt_metadata):
         global image_cache
         image_cache+=images
-        print("len image_cache")
+        print("len image_cache",len(image_cache))
         return [get_proto_gan_score(image) for image in images],{}
                     
 
