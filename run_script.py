@@ -101,6 +101,7 @@ def main(args):
 
     def get_proto_gan_score(image:Image.Image):
         tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
+        print(tensor_img.size)
         pred, _, _,_, = proto_discriminator(tensor_img,"fake")
         return pred.mean().detach().cpu().numpy().item()
     
@@ -209,17 +210,19 @@ def main(args):
                 image_cache=[]
                 with accelerator.autocast():
                     trainer.train(retain_graph=False,normalize_rewards=True)
-                fake_images=image_cache
+                
             else:
-                fake_images=[]
+                image_cache=[]
                 for i in range(args.disc_batch_size):
                     prompt,_=prompt_fn()
-                    fake_images.append(pipeline.sd_pipeline(prompt,
+                    image_cache.append(pipeline.sd_pipeline(prompt,
                         height=args.image_size,
                         width=args.image_size,num_inference_steps=args.num_inference_steps,
                         negative_prompt=NEGATIVE,safety_checker=None).images[0])
+            fake_images=image_cache
             fake_images=[composed_trans(image) for image in fake_images]
             fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
+            print(fake_images.size)
             err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
             fake_err_dr=train_d(proto_discriminator, [fi.detach() for fi in fake_images], label="fake")
 
@@ -234,6 +237,7 @@ def main(args):
             unet_lora_layers = get_peft_model_state_dict(pipeline.sd_pipeline.unet)
             pipeline.sd_pipeline.save_lora_weights(args.save_dir,unet_lora_layers)
             pipeline.sd_pipeline.save_pretrained(args.output_dir,push_to_hub=True, repo_id=args.hf_repo)
+        
             
 
 
