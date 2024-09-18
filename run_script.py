@@ -229,7 +229,7 @@ def main(args):
             optimizerD.step()
         end=time.time()
         print(f"epoch {e} ended after {end-start} seconds = {(end-start)/3600} hours")
-        if e % args.save_interval == 0 or e == args.adversarial_epoch:
+        if e % args.save_interval == 0 or e == args.adversarial_epochs:
             torch.save({'d':proto_discriminator.state_dict(),
                         'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
             unet_lora_layers = get_peft_model_state_dict(pipeline.sd_pipeline.unet)
