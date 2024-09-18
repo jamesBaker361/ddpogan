@@ -27,7 +27,6 @@ parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max
 parser.add_argument("--hf_repo",type=str,default="jlbaker361/ddpo-gan")
 parser.add_argument("--pretrain_epochs",type=int,default=1)
 parser.add_argument("--adversarial_epochs",type=int,default=10)
-parser.add_argument("--discriminator_batch_size",type=int,default=8)
 parser.add_argument("--pretrain_steps_per_epoch",default=4,type=int)
 parser.add_argument("--load_pretrained_disc",action="store_true")
 parser.add_argument("--output_dir",type=str,default="/scratch/jlb638/ddpogan/experiment")
@@ -158,12 +157,12 @@ def main(args):
 
     composed_data=[composed_trans(row["splash"]) for row in data]
     i=0
-    while len(composed_data)%args.discriminator_batch_size !=0:
+    while len(composed_data)%args.disc_batch_size !=0:
         composed_data.append(composed_data[i])
         i+=1
     batched_data=[]
-    for j in range(0,len(composed_data),args.discriminator_batch_size):
-        batched_data.append(composed_data[j:j+args.discriminator_batch_size])
+    for j in range(0,len(composed_data),args.disc_batch_size):
+        batched_data.append(composed_data[j:j+args.disc_batch_size])
     batched_data=[torch.stack(batch) for batch in batched_data]
 
     if args.pretrain_epochs>0:
@@ -204,7 +203,7 @@ def main(args):
                                                 negative_prompt=NEGATIVE,
                                                 width=width,
                                                 height=height,
-                                                safety_checker=None).images[0] for _ in range(len(args.discriminator_batch_size)) ]'''
+                                                safety_checker=None).images[0] for _ in range(len(args.disc_batch_size)) ]'''
             
             if e>=args.diffusion_start:
                 image_cache=[]
