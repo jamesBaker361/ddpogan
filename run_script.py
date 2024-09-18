@@ -103,7 +103,7 @@ def main(args):
     def get_proto_gan_score(image:Image.Image):
         tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
         pred, _, _,_, = proto_discriminator(tensor_img,"fake")
-        return pred.mean().detach().cpu().numpy()
+        return pred.mean().detach().cpu().numpy().item()
     
     pipeline=BetterDefaultDDPOStableDiffusionPipeline(
             False,
