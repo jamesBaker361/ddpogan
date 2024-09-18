@@ -199,6 +199,7 @@ def main(args):
             real_images=real_images.to(accelerator.device)
 
             real_images = DiffAugment(real_images, policy=policy)
+            print("real",real_images.size())
             '''fake_images=[pipeline.sd_pipeline(entity_name,
                                                 num_inference_steps=args.num_inference_steps,
                                                 negative_prompt=NEGATIVE,
@@ -221,7 +222,8 @@ def main(args):
                         negative_prompt=NEGATIVE,safety_checker=None).images[0])
             fake_images=image_cache
             fake_images=[composed_trans(image) for image in fake_images]
-            fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
+            fake_images=torch.stack(fake_images).to(accelerator.device)
+            fake_images=DiffAugment(fake_images,policy=policy)
             print(fake_images.size())
             err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
             fake_err_dr=train_d(proto_discriminator, [fi.detach() for fi in fake_images], label="fake")
