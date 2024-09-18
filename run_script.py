@@ -101,7 +101,7 @@ def main(args):
 
     def get_proto_gan_score(image:Image.Image):
         tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
-        print(tensor_img.size)
+        print(tensor_img.size())
         pred, _, _,_, = proto_discriminator(tensor_img,"fake")
         return pred.mean().detach().cpu().numpy().item()
     
@@ -222,7 +222,7 @@ def main(args):
             fake_images=image_cache
             fake_images=[composed_trans(image) for image in fake_images]
             fake_images=torch.stack([DiffAugment(image) for image in fake_images]).to(accelerator.device)
-            print(fake_images.size)
+            print(fake_images.size())
             err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
             fake_err_dr=train_d(proto_discriminator, [fi.detach() for fi in fake_images], label="fake")
 
