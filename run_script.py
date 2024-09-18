@@ -67,12 +67,6 @@ def main(args):
     accelerator.init_trackers(project_name=args.project_name,config=vars(args))
 
     data=load_dataset(args.dataset,split="train")
-    for row in data:
-        break
-    
-    width,height=row["splash"].size
-
-    print("width,height",width,height )
 
     image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
 
@@ -92,7 +86,7 @@ def main(args):
     optimizerD = torch.optim.Adam(proto_discriminator.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
     transform_list = [
-            transforms.Resize((width,height)),
+            transforms.Resize((args.image_size,args.image_size)),
             #transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
@@ -255,8 +249,8 @@ def main(args):
             image=pipeline.sd_pipeline(evaluation_prompt.format(entity_name),
                 num_inference_steps=args.num_inference_steps,
                 negative_prompt=NEGATIVE,
-                width=width,
-                height=height,
+                width=args.image_size,
+                height=args.image_size,
                 generator=generator,
                 safety_checker=None).images[0]
             evaluation_image_list.append(image)
