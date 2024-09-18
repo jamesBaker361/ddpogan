@@ -138,7 +138,9 @@ def main(args):
         global image_cache
         image_cache+=images
         print("len image_cache",len(image_cache))
-        return [get_proto_gan_score(image) for image in images],{}
+        rewards=[get_proto_gan_score(image) for image in images]
+        print(rewards)
+        return rewards,{}
                     
 
     image_samples_hook=get_image_sample_hook(args.image_dir)
