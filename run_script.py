@@ -45,6 +45,7 @@ parser.add_argument("--nlr",type=float,default=0.0002)
 parser.add_argument("--nbeta1",type=float,default=0.5)
 parser.add_argument("--image_size",type=int,default=512)
 parser.add_argument("--save_interval",type=int,default=10)
+parser.add_argument("--disc_batch_size",type=int,default=8)
 
 image_cache=[]
 
@@ -75,7 +76,7 @@ def main(args):
 
     image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
 
-    proto_discriminator=Discriminator(64,3,args.image_size,8)
+    proto_discriminator=Discriminator(64,3,args.image_size,args.disc_batch_size)
     proto_discriminator.apply(weights_init)
 
     if args.load_pretrained_disc:
@@ -99,7 +100,7 @@ def main(args):
     composed_trans = transforms.Compose(transform_list)
 
     def get_proto_gan_score(image:Image.Image):
-        tensor_img=composed_trans(image).unsqueeze(0).to(accelerator.device)
+        tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
         pred, _, _,_, = proto_discriminator(tensor_img,"fake")
         return pred.mean().detach().cpu().numpy()
     
