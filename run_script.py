@@ -155,7 +155,7 @@ def main(args):
     composed_data=[composed_trans(row["splash"]) for row in data]
     i=0
     while len(composed_data)%args.discriminator_batch_size !=0:
-        composed_data.append[i]
+        composed_data.append(composed_data[i])
         i+=1
     batched_data=[]
     for j in range(0,len(composed_data),args.discriminator_batch_size):
