@@ -231,7 +231,7 @@ def main(args):
             torch.save({'d':proto_discriminator.state_dict(),
                         'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
             unet_lora_layers = get_peft_model_state_dict(pipeline.sd_pipeline.unet)
-            pipeline.sd_pipeline.save_lora_weights(args.save_dir,unet_lora_layers)
+            pipeline.sd_pipeline.save_lora_weights(args.output_dir,unet_lora_layers)
             pipeline.sd_pipeline.save_pretrained(args.output_dir,push_to_hub=True, repo_id=args.hf_repo)
         
             
