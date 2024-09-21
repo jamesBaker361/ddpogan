@@ -97,7 +97,8 @@ def main(args):
         tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
         print(tensor_img.size())
         pred, _, _,_, = proto_discriminator(tensor_img,"fake")
-        return pred.mean().detach().cpu().numpy().item()
+        print(pred)
+        return -1.0 * pred.mean().detach().cpu().numpy().item()
     
     pipeline=BetterDefaultDDPOStableDiffusionPipeline(
             False,
