@@ -18,6 +18,8 @@ from peft.utils import get_peft_model_state_dict
 from proto_gan_training import train_d
 import wandb
 from safetensors.torch import save_model
+from clip_discriminator import ClipDiscriminator
+import numpy as np
 
 parser=argparse.ArgumentParser()
 
@@ -46,8 +48,9 @@ parser.add_argument("--image_size",type=int,default=512)
 parser.add_argument("--save_interval",type=int,default=10)
 parser.add_argument("--disc_batch_size",type=int,default=8)
 parser.add_argument("--diffusion_start",type=int,default=0,help="how many adversarial epochs to wait before training ddpo")
-parser.add_argument("--use_clip_transformer",action="store_true")
+parser.add_argument("--use_clip_discriminator",action="store_true")
 parser.add_argument("--use_proto_discriminator",action="store_true")
+parser.add_argument("--random_init",action="store_true")
 
 image_cache=[]
 
@@ -71,36 +74,73 @@ def main(args):
     data=load_dataset(args.dataset,split="train")
 
     image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
+    if args.use_proto_discriminator:
 
-    proto_discriminator=Discriminator(64,3,args.image_size,args.disc_batch_size)
-    proto_discriminator.apply(weights_init)
+        proto_discriminator=Discriminator(64,3,args.image_size,args.disc_batch_size)
+        proto_discriminator.apply(weights_init)
 
-    if args.load_pretrained_disc:
+        if args.load_pretrained_disc:
 
-        try:
-            ckpt = torch.load(args.pretrained_proto_gan)
-        except RuntimeError:
-            ckpt = torch.load(args.pretrained_proto_gan,map_location=torch.device('cpu'))
-        proto_discriminator.load_state_dict(ckpt['d'])
+            try:
+                ckpt = torch.load(args.pretrained_proto_gan)
+            except RuntimeError:
+                ckpt = torch.load(args.pretrained_proto_gan,map_location=torch.device('cpu'))
+            proto_discriminator.load_state_dict(ckpt['d'])
 
-    proto_discriminator=proto_discriminator.to(accelerator.device)
+        proto_discriminator=proto_discriminator.to(accelerator.device)
 
-    optimizerD = torch.optim.Adam(proto_discriminator.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
+        optimizerD = torch.optim.Adam(proto_discriminator.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
-    transform_list = [
-            transforms.Resize((args.image_size,args.image_size)),
-            #transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-        ]
-    composed_trans = transforms.Compose(transform_list)
+        transform_list = [
+                transforms.Resize((args.image_size,args.image_size)),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+            ]
+        composed_trans = transforms.Compose(transform_list)
 
-    def get_proto_gan_score(image:Image.Image):
-        tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
-        print(tensor_img.size())
-        pred, _, _,_, = proto_discriminator(tensor_img,"fake")
-        print(pred)
-        return -1.0 * pred.mean().detach().cpu().numpy().item()
+        def get_proto_gan_score(image:Image.Image):
+            tensor_img=torch.stack([composed_trans(image).squeeze(0).to(accelerator.device) for _ in range(args.disc_batch_size)])
+            print(tensor_img.size())
+            pred, _, _,_, = proto_discriminator(tensor_img,"fake")
+            print(pred)
+            return -1.0 * pred.mean().detach().cpu().numpy().item()
+        
+        composed_data=[composed_trans(row["splash"]) for row in data]
+        i=0
+        while len(composed_data)%args.disc_batch_size !=0:
+            composed_data.append(composed_data[i])
+            i+=1
+        batched_data=[]
+        for j in range(0,len(composed_data),args.disc_batch_size):
+            batched_data.append(composed_data[j:j+args.disc_batch_size])
+        batched_data=[torch.stack(batch) for batch in batched_data]
+
+        score_fn=get_proto_gan_score
+
+    elif args.use_clip_discriminator:
+        disc=ClipDiscriminator(args.random_init,accelerator.device)
+        optimizerD = torch.optim.Adam(disc.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
+
+        def get_clip_score(image:Image.Image):
+            pred=disc(image)
+            return pred.mean().detach().cpu().numpy().item()
+        
+        score_fn=get_clip_score
+        i=0
+        while len(image_list) %args.disc_batch_size !=0:
+            image_list.append(image_list[i])
+            i+=1
+        batched_data=[]
+        for j in range(0,len(image_list),args.disc_batch_size):
+            batched_data.append(image_list[j:j+args.disc_batch_size])
+
+        
+
+
+
+        
+    
     
     pipeline=BetterDefaultDDPOStableDiffusionPipeline(
             False,
@@ -135,8 +175,7 @@ def main(args):
     def reward_fn(images, prompts, epoch,prompt_metadata):
         global image_cache
         image_cache+=images
-        print("len image_cache",len(image_cache))
-        rewards=[get_proto_gan_score(image) for image in images]
+        rewards=[score_fn(image) for image in images]
         print(rewards)
         return rewards,{}
                     
@@ -153,15 +192,7 @@ def main(args):
     )
     print("len trainable parameters",len(pipeline.get_trainable_layers()))
 
-    composed_data=[composed_trans(row["splash"]) for row in data]
-    i=0
-    while len(composed_data)%args.disc_batch_size !=0:
-        composed_data.append(composed_data[i])
-        i+=1
-    batched_data=[]
-    for j in range(0,len(composed_data),args.disc_batch_size):
-        batched_data.append(composed_data[j:j+args.disc_batch_size])
-    batched_data=[torch.stack(batch) for batch in batched_data]
+
 
     if args.pretrain_epochs>0:
         #pretrain_image_list=[src_image] *pretrain_steps_per_epoch
@@ -193,17 +224,7 @@ def main(args):
         err_dr_list=[]
         fake_err_dr_list=[]
         for _step,real_images in enumerate(batched_data):
-            real_images=real_images.to(accelerator.device)
 
-            real_images = DiffAugment(real_images, policy=policy)
-            print("real",real_images.size())
-            '''fake_images=[pipeline.sd_pipeline(entity_name,
-                                                num_inference_steps=args.num_inference_steps,
-                                                negative_prompt=NEGATIVE,
-                                                width=width,
-                                                height=height,
-                                                safety_checker=None).images[0] for _ in range(len(args.disc_batch_size)) ]'''
-            
             if e>=args.diffusion_start:
                 image_cache=[]
                 with accelerator.autocast():
@@ -218,18 +239,55 @@ def main(args):
                         width=args.image_size,num_inference_steps=args.num_inference_steps,
                         negative_prompt=NEGATIVE,safety_checker=None).images[0])
             fake_images=image_cache
-            fake_images=[composed_trans(image) for image in fake_images]
-            fake_images=torch.stack(fake_images).to(accelerator.device)
-            fake_images=DiffAugment(fake_images,policy=policy)
-            print(fake_images.size())
-            err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
-            fake_err_dr=train_d(proto_discriminator, fake_images, label="fake")
 
-            err_dr_list.append(err_dr)
-            fake_err_dr_list.append(fake_err_dr)
+            if args.use_proto_discriminator:
+                real_images=real_images.to(accelerator.device)
+
+                real_images = DiffAugment(real_images, policy=policy)
+                print("real",real_images.size())
+                '''fake_images=[pipeline.sd_pipeline(entity_name,
+                                                    num_inference_steps=args.num_inference_steps,
+                                                    negative_prompt=NEGATIVE,
+                                                    width=width,
+                                                    height=height,
+                                                    safety_checker=None).images[0] for _ in range(len(args.disc_batch_size)) ]'''
+                
+                
+                fake_images=[composed_trans(image) for image in fake_images]
+                fake_images=torch.stack(fake_images).to(accelerator.device)
+                fake_images=DiffAugment(fake_images,policy=policy)
+                print(fake_images.size())
+                err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
+                fake_err_dr=train_d(proto_discriminator, fake_images, label="fake")
+
+                
+            
+            elif args.use_clip_discriminator:
+                predictions_real=disc(real_images)
+                real_labels=torch.ones(predictions_real.size())
+
+                err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
+                err_dr.backward()
+
+                predictions_fake=disc(fake_images)
+                fake_labels=torch.zeros(predictions_fake.size())
+                fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
+                fake_err_dr.backward()
+
+            err_dr_list.append(err_dr.detach().cpu().numpy())
+            fake_err_dr_list.append(fake_err_dr.detach().cpu().numpy())
             optimizerD.step()
+
+
         end=time.time()
         print(f"epoch {e} ended after {end-start} seconds = {(end-start)/3600} hours")
+        metrics={
+            "err_dr":np.mean(err_dr_list),
+            "fake_err_dr":np.mean(fake_err_dr_list),
+        }
+        for k,v in metrics.items():
+            print("\t",k,v)
+        accelerator.log(metrics)
         if e % args.save_interval == 0 or e == args.adversarial_epochs:
             torch.save({'d':proto_discriminator.state_dict(),
                         'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
