@@ -34,7 +34,7 @@ parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/ddpogan_imag
 parser.add_argument("--pretrained_proto_gan",type=str,default="/scratch/jlb638/512_30000_proto_8/all_20000.pth")
 parser.add_argument("--ddpo_lr",type=float,default=0.0001)
 parser.add_argument("--train_gradient_accumulation_steps",type=int,default=8)
-parser.add_argument("--num_inference_steps",type=int,default=30)
+parser.add_argument("--num_inference_steps",type=int,default=20)
 parser.add_argument("--ddpo_batch_size",type=int,default=1)
 parser.add_argument("--pretrain_batch_size",type=int,default=8)
 parser.add_argument("--samples_per_epoch",type=int,default=8)
@@ -46,6 +46,8 @@ parser.add_argument("--image_size",type=int,default=512)
 parser.add_argument("--save_interval",type=int,default=10)
 parser.add_argument("--disc_batch_size",type=int,default=8)
 parser.add_argument("--diffusion_start",type=int,default=0,help="how many adversarial epochs to wait before training ddpo")
+parser.add_argument("--use_clip_transformer",action="store_true")
+parser.add_argument("--use_proto_discriminator",action="store_true")
 
 image_cache=[]
 
