@@ -51,6 +51,7 @@ parser.add_argument("--diffusion_start",type=int,default=0,help="how many advers
 parser.add_argument("--use_clip_discriminator",action="store_true")
 parser.add_argument("--use_proto_discriminator",action="store_true")
 parser.add_argument("--random_init",action="store_true")
+parser.add_argument("--increasing_steps",action="store_true",help="whether to slwly increase the amount of steps used for training discriminator before adversarial training")
 
 image_cache=[]
 
@@ -232,11 +233,14 @@ def main(args):
                 
             else:
                 image_cache=[]
+                steps=args.num_inference_steps
+                if args.increasing_steps:
+                    steps = int(e * args.num_inference_steps/ args.diffusion_start)
                 for i in range(args.disc_batch_size):
                     prompt,_=prompt_fn()
                     image_cache.append(pipeline.sd_pipeline(prompt,
                         height=args.image_size,
-                        width=args.image_size,num_inference_steps=args.num_inference_steps,
+                        width=args.image_size,num_inference_steps=steps,
                         negative_prompt=NEGATIVE,safety_checker=None).images[0])
             fake_images=image_cache
 
