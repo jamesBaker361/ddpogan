@@ -176,7 +176,7 @@ def main(args):
         global image_cache
         image_cache+=images
         rewards=[score_fn(image) for image in images]
-        print(rewards)
+        #print(rewards)
         return rewards,{}
                     
 
@@ -264,13 +264,13 @@ def main(args):
             
             elif args.use_clip_discriminator:
                 predictions_real=disc(real_images)
-                real_labels=torch.ones(predictions_real.size())
+                real_labels=torch.ones(predictions_real.size()).to(accelerator.device)
 
                 err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
                 err_dr.backward()
 
                 predictions_fake=disc(fake_images)
-                fake_labels=torch.zeros(predictions_fake.size())
+                fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)
                 fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
                 fake_err_dr.backward()
 
