@@ -120,11 +120,11 @@ def main(args):
         score_fn=get_proto_gan_score
 
     elif args.use_clip_discriminator:
-        disc=ClipDiscriminator(args.random_init,accelerator.device)
-        optimizerD = torch.optim.Adam(disc.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
+        clip_disc=ClipDiscriminator(args.random_init,accelerator.device)
+        optimizerD = torch.optim.Adam(clip_disc.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
         def get_clip_score(image:Image.Image):
-            pred=disc(image)
+            pred=clip_disc(image)
             return pred.mean().detach().cpu().numpy().item()
         
         score_fn=get_clip_score
@@ -267,13 +267,13 @@ def main(args):
                 
             
             elif args.use_clip_discriminator:
-                predictions_real=disc(real_images)
+                predictions_real=clip_disc(real_images)
                 real_labels=torch.ones(predictions_real.size()).to(accelerator.device)
 
                 err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
                 err_dr.backward()
 
-                predictions_fake=disc(fake_images)
+                predictions_fake=clip_disc(fake_images)
                 fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)
                 fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
                 fake_err_dr.backward()
@@ -293,8 +293,12 @@ def main(args):
             print("\t",k,v)
         accelerator.log(metrics)
         if e % args.save_interval == 0 or e == args.adversarial_epochs:
-            torch.save({'d':proto_discriminator.state_dict(),
-                        'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
+            if args.use_proto_discriminator:
+                torch.save({'d':proto_discriminator.state_dict(),
+                            'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
+            elif args.use_clip_discriminator:
+                torch.save({'d':clip_disc.state_dict(),
+                            'opt_d': optimizerD.state_dict()}, args.output_dir+'/all_%d.pth'%e)
             unet_lora_layers = get_peft_model_state_dict(pipeline.sd_pipeline.unet)
             pipeline.sd_pipeline.save_lora_weights(args.output_dir,unet_lora_layers)
             pipeline.sd_pipeline.save_pretrained(args.output_dir,push_to_hub=True, repo_id=args.hf_repo)
