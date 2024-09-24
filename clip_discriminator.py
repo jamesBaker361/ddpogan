@@ -14,7 +14,7 @@ def weights_init(m):
     #print("couldnt init weights for ",",".join([i for i in invalid]))
     
 
-class ClipDiscriminatorc(nn.Module):
+class ClipDiscriminator(nn.Module):
     def __init__(self, random_init:bool=False,device:str="cpu" ) -> None:
         super().__init__()
         model=CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
@@ -25,7 +25,11 @@ class ClipDiscriminatorc(nn.Module):
         if random_init:
             self.vision_model.apply(weights_init)
         
-        self.classification_head=nn.Linear(model.vision_embed_dim,1)
+        self.classification_head=nn.Sequential(
+            nn.Linear(model.vision_embed_dim,256),
+            nn.Linear(256,1))
+        self.classification_head=self.classification_head.to(device)
+        print("model.vision_embed_dim",model.vision_embed_dim )
 
     def forward(self,images: Union[Image.Image, List[Image.Image]])->Tensor:
         if isinstance(images, list) is False:
@@ -42,6 +46,6 @@ class ClipDiscriminatorc(nn.Module):
 
 
 if __name__=='__main__':
-    disc=ClipDiscriminatorc(True)
+    disc=ClipDiscriminator(True)
     img=Image.open("jinx.jpg")
     print(disc(img))
