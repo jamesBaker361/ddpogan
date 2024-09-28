@@ -268,13 +268,13 @@ def main(args):
             
             elif args.use_clip_discriminator:
                 predictions_real=clip_disc(real_images)
-                real_labels=torch.ones(predictions_real.size()).to(accelerator.device)
+                real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device)
 
                 err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
                 err_dr.backward()
 
                 predictions_fake=clip_disc(fake_images)
-                fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)
+                fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device)
                 fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
                 fake_err_dr.backward()
 
