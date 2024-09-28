@@ -27,6 +27,8 @@ class ClipDiscriminator(nn.Module):
         
         self.classification_head=nn.Sequential(
             nn.Linear(model.vision_embed_dim,256),
+            nn.BatchNorm2d(256),
+            nn.LeakyReLU(),
             nn.Linear(256,1))
         self.classification_head=self.classification_head.to(device)
         print("model.vision_embed_dim",model.vision_embed_dim )
