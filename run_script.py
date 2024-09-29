@@ -243,6 +243,7 @@ def main(args):
                 steps=args.num_inference_steps
                 if args.increasing_steps:
                     steps = int(e * args.num_inference_steps/ args.diffusion_start)
+                steps=max(steps,2)
                 for i in range(args.disc_batch_size):
                     prompt,_=prompt_fn()
                     image_cache.append(pipeline.sd_pipeline(prompt,
