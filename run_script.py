@@ -80,6 +80,7 @@ def main(args):
     data=load_dataset(args.dataset,split="train")
 
     image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
+    random.shuffle(image_list)
     if args.use_proto_discriminator:
 
         proto_discriminator=Discriminator(64,3,args.image_size,args.disc_batch_size)
@@ -226,6 +227,7 @@ def main(args):
     policy = 'color,translation,cutout'
     print(f"acceleerate device {trainer.accelerator.device}")
     for e in range(1,args.adversarial_epochs+1):
+        random.shuffle(batched_data)
         start=time.time()
         err_dr_list=[]
         fake_err_dr_list=[]
@@ -272,6 +274,8 @@ def main(args):
                 
             
             elif args.use_clip_discriminator:
+                composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
+                real_images=[composed_trans(ri) for ri in real_images]
                 predictions_real=clip_disc(real_images)
                 real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device)
 
