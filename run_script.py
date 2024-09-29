@@ -2,6 +2,7 @@ import os
 import argparse
 from experiment_helpers.gpu_details import print_details
 from accelerate import Accelerator
+from accelerate.utils.random import set_seed
 import time
 from proto_gan_models import Discriminator,weights_init
 from datasets import load_dataset
@@ -20,6 +21,7 @@ import wandb
 from safetensors.torch import save_model
 from clip_discriminator import ClipDiscriminator
 import numpy as np
+import random
 
 parser=argparse.ArgumentParser()
 
@@ -70,6 +72,9 @@ def main(args):
     global image_cache
     
     accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision)
+    set_seed(42)
+
+    
     accelerator.init_trackers(project_name=args.project_name,config=vars(args))
 
     data=load_dataset(args.dataset,split="train")
