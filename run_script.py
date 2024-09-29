@@ -232,7 +232,7 @@ def main(args):
         err_dr_list=[]
         fake_err_dr_list=[]
         for _step,real_images in enumerate(batched_data):
-
+            optimizerD.zero_grad()
             if e>=args.diffusion_start:
                 image_cache=[]
                 with accelerator.autocast():
