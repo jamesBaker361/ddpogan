@@ -18,8 +18,7 @@ class ClipDiscriminator(nn.Module):
     def __init__(self, random_init:bool=False,device:str="cpu" ) -> None:
         super().__init__()
         model=CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
-        self.vision_model = model.vision_model
-        self.vision_model=self.vision_model.to(device)
+        self.vision_model = model.vision_model.to(device)
         self.device=device
         self.processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
         if random_init:
