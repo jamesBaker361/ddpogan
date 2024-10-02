@@ -144,7 +144,8 @@ def main(args):
             batched_data.append(image_list[j:j+args.disc_batch_size])
 
         
-
+    torch.cuda.empty_cache()
+    accelerator.free_memory()
 
 
         
