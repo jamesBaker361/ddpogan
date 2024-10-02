@@ -71,7 +71,8 @@ def main(args):
         os.makedirs(d,exist_ok=True)
     global image_cache
     
-    accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision)
+    accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision,
+                            gradient_accumulation_steps=args.train_gradient_accumulation_steps)
     set_seed(42)
 
     
@@ -232,65 +233,68 @@ def main(args):
         err_dr_list=[]
         fake_err_dr_list=[]
         for _step,real_images in enumerate(batched_data):
-            optimizerD.zero_grad()
-            if e>=args.diffusion_start:
-                image_cache=[]
-                with accelerator.autocast():
-                    trainer.train(retain_graph=False,normalize_rewards=True)
+            with accelerator.accumulate(pipeline.sd_pipeline.unet,clip_disc): #change this for proto_disc
+                optimizerD.zero_grad()
+                if e>=args.diffusion_start:
+                    image_cache=[]
+                    with accelerator.autocast():
+                        trainer.train(retain_graph=False,normalize_rewards=True)
+                    
+                else:
+                    image_cache=[]
+                    steps=args.num_inference_steps
+                    if args.increasing_steps:
+                        steps = int(e * args.num_inference_steps/ args.diffusion_start)
+                    steps=max(steps,2)
+                    for i in range(args.disc_batch_size):
+                        prompt,_=prompt_fn()
+                        image_cache.append(pipeline.sd_pipeline(prompt,
+                            height=args.image_size,
+                            width=args.image_size,num_inference_steps=steps,
+                            negative_prompt=NEGATIVE,safety_checker=None).images[0])
+                fake_images=image_cache
+
+                if args.use_proto_discriminator:
+                    real_images=real_images.to(accelerator.device)
+
+                    real_images = DiffAugment(real_images, policy=policy)
+                    print("real",real_images.size())
+                    '''fake_images=[pipeline.sd_pipeline(entity_name,
+                                                        num_inference_steps=args.num_inference_steps,
+                                                        negative_prompt=NEGATIVE,
+                                                        width=width,
+                                                        height=height,
+                                                        safety_checker=None).images[0] for _ in range(len(args.disc_batch_size)) ]'''
+                    
+                    
+                    fake_images=[composed_trans(image) for image in fake_images]
+                    fake_images=torch.stack(fake_images).to(accelerator.device)
+                    fake_images=DiffAugment(fake_images,policy=policy)
+                    print(fake_images.size())
+                    err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
+                    fake_err_dr=train_d(proto_discriminator, fake_images, label="fake")
+
+                    
                 
-            else:
-                image_cache=[]
-                steps=args.num_inference_steps
-                if args.increasing_steps:
-                    steps = int(e * args.num_inference_steps/ args.diffusion_start)
-                steps=max(steps,2)
-                for i in range(args.disc_batch_size):
-                    prompt,_=prompt_fn()
-                    image_cache.append(pipeline.sd_pipeline(prompt,
-                        height=args.image_size,
-                        width=args.image_size,num_inference_steps=steps,
-                        negative_prompt=NEGATIVE,safety_checker=None).images[0])
-            fake_images=image_cache
+                elif args.use_clip_discriminator:
+                    composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
+                    real_images=[composed_trans(ri) for ri in real_images]
+                    predictions_real=clip_disc(real_images)
+                    real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device)
 
-            if args.use_proto_discriminator:
-                real_images=real_images.to(accelerator.device)
+                    err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
+                    #err_dr.backward()
+                    accelerator.backward(err_dr)
 
-                real_images = DiffAugment(real_images, policy=policy)
-                print("real",real_images.size())
-                '''fake_images=[pipeline.sd_pipeline(entity_name,
-                                                    num_inference_steps=args.num_inference_steps,
-                                                    negative_prompt=NEGATIVE,
-                                                    width=width,
-                                                    height=height,
-                                                    safety_checker=None).images[0] for _ in range(len(args.disc_batch_size)) ]'''
-                
-                
-                fake_images=[composed_trans(image) for image in fake_images]
-                fake_images=torch.stack(fake_images).to(accelerator.device)
-                fake_images=DiffAugment(fake_images,policy=policy)
-                print(fake_images.size())
-                err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
-                fake_err_dr=train_d(proto_discriminator, fake_images, label="fake")
+                    predictions_fake=clip_disc(fake_images)
+                    fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device)
+                    fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
+                    #fake_err_dr.backward()
+                    accelerator.backward(fake_err_dr)
 
-                
-            
-            elif args.use_clip_discriminator:
-                composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
-                real_images=[composed_trans(ri) for ri in real_images]
-                predictions_real=clip_disc(real_images)
-                real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device)
-
-                err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
-                err_dr.backward()
-
-                predictions_fake=clip_disc(fake_images)
-                fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device)
-                fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
-                fake_err_dr.backward()
-
-            err_dr_list.append(err_dr.detach().cpu().numpy())
-            fake_err_dr_list.append(fake_err_dr.detach().cpu().numpy())
-            optimizerD.step()
+                err_dr_list.append(err_dr.detach().cpu().numpy())
+                fake_err_dr_list.append(fake_err_dr.detach().cpu().numpy())
+                optimizerD.step()
 
 
         end=time.time()
