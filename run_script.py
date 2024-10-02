@@ -37,7 +37,7 @@ parser.add_argument("--output_dir",type=str,default="/scratch/jlb638/ddpogan/exp
 parser.add_argument("--image_dir",type=str,default="/scratch/jlb638/ddpogan_images/experiment")
 parser.add_argument("--pretrained_proto_gan",type=str,default="/scratch/jlb638/512_30000_proto_8/all_20000.pth")
 parser.add_argument("--ddpo_lr",type=float,default=0.0001)
-parser.add_argument("--train_gradient_accumulation_steps",type=int,default=8)
+parser.add_argument("--train_gradient_accumulation_steps",type=int,default=16)
 parser.add_argument("--num_inference_steps",type=int,default=20)
 parser.add_argument("--ddpo_batch_size",type=int,default=1)
 parser.add_argument("--pretrain_batch_size",type=int,default=8)
