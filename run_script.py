@@ -71,8 +71,15 @@ def main(args):
         os.makedirs(d,exist_ok=True)
     global image_cache
     
+    if torch.cuda.is_available() and args.mixed_precision!="no":
+        weight_dtype=torch.float16
+        mixed_precision=args.mixed_precision
+    else:
+        weight_dtype=torch.float32
+        mixed_precision="no"
+
     accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision,
-                            gradient_accumulation_steps=args.train_gradient_accumulation_steps)
+                            gradient_accumulation_steps=args.train_gradient_accumulation_steps,mixed_precision=mixed_precision)
     set_seed(42)
 
     
@@ -95,7 +102,7 @@ def main(args):
                 ckpt = torch.load(args.pretrained_proto_gan,map_location=torch.device('cpu'))
             proto_discriminator.load_state_dict(ckpt['d'])
 
-        proto_discriminator=proto_discriminator.to(accelerator.device)
+        proto_discriminator=proto_discriminator.to(accelerator.device,weight_dtype=weight_dtype)
 
         optimizerD = torch.optim.Adam(proto_discriminator.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
@@ -127,7 +134,7 @@ def main(args):
         score_fn=get_proto_gan_score
 
     elif args.use_clip_discriminator:
-        clip_disc=ClipDiscriminator(args.random_init,accelerator.device)
+        clip_disc=ClipDiscriminator(args.random_init,accelerator.device).to(weight_dtype)
         optimizerD = torch.optim.Adam(clip_disc.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
         def get_clip_score(image:Image.Image):
@@ -262,7 +269,7 @@ def main(args):
             trainer.accelerator.free_memory()
 
             if args.use_proto_discriminator:
-                real_images=real_images.to(accelerator.device)
+                real_images=real_images.to(accelerator.device,dtype=weight_dtype)
 
                 real_images = DiffAugment(real_images, policy=policy)
                 print("real",real_images.size())
@@ -275,7 +282,7 @@ def main(args):
                 
                 
                 fake_images=[composed_trans(image) for image in fake_images]
-                fake_images=torch.stack(fake_images).to(accelerator.device)
+                fake_images=torch.stack(fake_images).to(accelerator.device,dtype=weight_dtype)
                 fake_images=DiffAugment(fake_images,policy=policy)
                 print(fake_images.size())
                 err_dr, rec_img_all, rec_img_small, rec_img_part = train_d(proto_discriminator, real_images, label="real")
@@ -288,7 +295,7 @@ def main(args):
                     composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
                     real_images=[composed_trans(ri) for ri in real_images]
                     predictions_real=clip_disc(real_images)
-                    real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device)
+                    real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
 
                     err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
                     #err_dr.backward()
@@ -297,7 +304,7 @@ def main(args):
                     index=_step%args.train_gradient_accumulation_steps - (args.train_gradient_accumulation_steps%args.disc_batch_size)
                     predictions_fake=clip_disc(fake_images[index:index+args.disc_batch_size])
                     print('len image cache',len(image_cache),'index ',index, 'index+args.disc_batch_size ',index+args.disc_batch_size)
-                    fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device)
+                    fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device,dtype=weight_dtype)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
                     fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
                     #fake_err_dr.backward()
                     accelerator.backward(fake_err_dr)
