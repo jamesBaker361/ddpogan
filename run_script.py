@@ -258,6 +258,9 @@ def main(args):
                             negative_prompt=NEGATIVE,safety_checker=None).images[0])
                 fake_images=image_cache
 
+            torch.cuda.empty_cache()
+            trainer.accelerator.free_memory()
+
             if args.use_proto_discriminator:
                 real_images=real_images.to(accelerator.device)
 
