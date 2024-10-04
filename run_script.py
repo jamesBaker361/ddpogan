@@ -73,13 +73,11 @@ def main(args):
     
     if torch.cuda.is_available() and args.mixed_precision!="no":
         weight_dtype={"fp16":torch.float16}[args.mixed_precision]
-        mixed_precision=args.mixed_precision
     else:
         weight_dtype=torch.float32
-        mixed_precision="no"
 
     accelerator=Accelerator(log_with="wandb",mixed_precision=args.mixed_precision,
-                            gradient_accumulation_steps=args.train_gradient_accumulation_steps,mixed_precision=mixed_precision)
+                            gradient_accumulation_steps=args.train_gradient_accumulation_steps)
     set_seed(42)
 
     
