@@ -72,7 +72,7 @@ def main(args):
     global image_cache
     
     if torch.cuda.is_available() and args.mixed_precision!="no":
-        weight_dtype=torch.float16
+        weight_dtype={"fp16":torch.float16}[args.mixed_precision]
         mixed_precision=args.mixed_precision
     else:
         weight_dtype=torch.float32
