@@ -293,6 +293,7 @@ def main(args):
                     composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
                     real_images=[composed_trans(ri) for ri in real_images]
                     predictions_real=clip_disc(real_images)
+                    print("pred real", predictions_real)
                     real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
 
                     err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
@@ -301,6 +302,7 @@ def main(args):
 
                     index=_step%args.train_gradient_accumulation_steps - (args.train_gradient_accumulation_steps%args.disc_batch_size)
                     predictions_fake=clip_disc(fake_images[index:index+args.disc_batch_size])
+                    print("pred fake", predictions_fake)
                     print('len image cache',len(image_cache),'index ',index, 'index+args.disc_batch_size ',index+args.disc_batch_size)
                     fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device,dtype=weight_dtype)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
                     fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
