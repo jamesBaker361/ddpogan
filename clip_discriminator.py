@@ -1,4 +1,4 @@
-from transformers.models.clip.modeling_clip import CLIPVisionTransformer,CLIPVisionConfig,CLIPModel
+from transformers.models.clip.modeling_clip import CLIPVisionTransformer,CLIPVisionConfig,CLIPModel,CLIPVisionModelWithProjection
 from transformers.models.clip.image_processing_clip import CLIPImageProcessor
 from torch import nn,Tensor
 from PIL import Image
@@ -17,15 +17,15 @@ def weights_init(m):
 class ClipDiscriminator(nn.Module):
     def __init__(self, random_init:bool=False,device:str="cpu" ) -> None:
         super().__init__()
-        model=CLIPModel.from_pretrained("openai/clip-vit-large-patch14")
-        self.vision_model = model.vision_model.to(device)
+        self.vision_model=CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-large-patch14")
+        self.vision_model = self.vision_model.to(device)
         self.device=device
         self.processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
         if random_init:
             self.vision_model.apply(weights_init)
         
         self.classification_head=nn.Sequential(
-            nn.Linear(model.vision_embed_dim,512),
+            nn.Linear(self.vision_model.hidden_size,512),
             nn.LayerNorm(512),
             nn.LeakyReLU(),
             nn.Linear(512,256),
@@ -39,7 +39,7 @@ class ClipDiscriminator(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(64,1))
         self.classification_head=self.classification_head.to(device)
-        print("model.vision_embed_dim",model.vision_embed_dim )
+        print("model.hidden_size",self.vision_model.hidden_size )
 
     def forward(self,images: Union[Image.Image, List[Image.Image]])->Tensor:
         if isinstance(images, list) is False:
@@ -47,8 +47,9 @@ class ClipDiscriminator(nn.Module):
         inputs = self.processor(images=images, return_tensors="pt")
         inputs["pixel_values"]=inputs["pixel_values"].to(self.device)
         outputs = self.vision_model(**inputs)
-        pooled_output = outputs.pooler_output
-        classification=self.classification_head(pooled_output)
+        print(outputs)
+        image_embeds = outputs.image_embeds
+        classification=self.classification_head(image_embeds)
         classification=nn.functional.sigmoid(classification)
         return classification
 
