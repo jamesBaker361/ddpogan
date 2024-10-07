@@ -17,15 +17,14 @@ def weights_init(m):
 class ClipDiscriminator(nn.Module):
     def __init__(self, random_init:bool=False,device:str="cpu" ) -> None:
         super().__init__()
-        self.vision_model=CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-large-patch14")
-        self.vision_model = self.vision_model.to(device)
+        self.vision_model=CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-large-patch14").to(device)
         self.device=device
         self.processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-large-patch14")
         if random_init:
             self.vision_model.apply(weights_init)
         
         self.classification_head=nn.Sequential(
-            nn.Linear(self.vision_model.hidden_size,512),
+            nn.Linear(self.vision_model.config.projection_dim,512),
             nn.LayerNorm(512),
             nn.LeakyReLU(),
             nn.Linear(512,256),
@@ -39,7 +38,7 @@ class ClipDiscriminator(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(64,1))
         self.classification_head=self.classification_head.to(device)
-        print("model.hidden_size",self.vision_model.hidden_size )
+        print("model.hidden_size",self.vision_model.config.projection_dim )
 
     def forward(self,images: Union[Image.Image, List[Image.Image]])->Tensor:
         if isinstance(images, list) is False:
