@@ -302,8 +302,8 @@ def main(args):
 
                     index=_step%args.train_gradient_accumulation_steps - (args.train_gradient_accumulation_steps%args.disc_batch_size)
                     predictions_fake=clip_disc(fake_images[index:index+args.disc_batch_size])
-                    print("pred fake", predictions_fake)
-                    print('len image cache',len(image_cache),'index ',index, 'index+args.disc_batch_size ',index+args.disc_batch_size)
+                    #print("pred fake", predictions_fake)
+                    #print('len image cache',len(image_cache),'index ',index, 'index+args.disc_batch_size ',index+args.disc_batch_size)
                     fake_labels=torch.zeros(predictions_fake.size()).to(accelerator.device,dtype=weight_dtype)+ 0.1*torch.rand(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
                     fake_err_dr=torch.nn.functional.mse_loss(fake_labels, predictions_fake)
                     #fake_err_dr.backward()
@@ -356,13 +356,13 @@ def main(args):
             evaluation_image_list.append(image)
             try:
                 accelerator.log({
-                    f"{j}_{n}":wandb.Image(image)
+                    f"{j}":wandb.Image(image)
                 })
             except:
                 temp="temp.png"
                 image.save(temp)
                 accelerator.log({
-                    f"{j}_{n}":wandb.Image(temp)
+                    f"{j}":wandb.Image(temp)
                 })
 
     #evaluation: find most similar image in dataset and compare clip/vit/content/style similarities
