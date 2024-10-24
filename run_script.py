@@ -26,6 +26,7 @@ import random
 parser=argparse.ArgumentParser()
 
 parser.add_argument("--mixed_precision",type=str,default="no")
+parser.add_argument("--style_list",nargs="*")
 parser.add_argument("--project_name",type=str,default="ddpogan")
 parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max_plus")
 parser.add_argument("--hf_repo",type=str,default="jlbaker361/ddpo-gan")
@@ -84,8 +85,11 @@ def main(args):
     accelerator.init_trackers(project_name=args.project_name,config=vars(args))
 
     data=load_dataset(args.dataset,split="train")
-
-    image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
+    if args.style_list is not None and len(args.style_list)>0:
+        image_list=[row["image"].resize((args.image_size,args.image_size)) for row in data if row["style"] in args.style_list]
+    else:
+        image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
+    print(f"selected {len(image_list)}/ {len(data)}")
     random.shuffle(image_list)
     if args.use_proto_discriminator:
 
