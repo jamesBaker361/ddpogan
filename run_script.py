@@ -41,6 +41,7 @@ parser.add_argument("--ddpo_lr",type=float,default=0.0001)
 parser.add_argument("--train_gradient_accumulation_steps",type=int,default=16)
 parser.add_argument("--num_inference_steps",type=int,default=20)
 parser.add_argument("--ddpo_batch_size",type=int,default=1)
+parser.add_argument("--clip_classification_type",type=str, default=DROPOUT)
 parser.add_argument("--pretrain_batch_size",type=int,default=8)
 parser.add_argument("--samples_per_epoch",type=int,default=64)
 parser.add_argument("--entity_name",type=str,default="league_of_legends_character")
@@ -136,7 +137,7 @@ def main(args):
         score_fn=get_proto_gan_score
 
     elif args.use_clip_discriminator:
-        clip_disc=ClipDiscriminator(args.random_init,accelerator.device).to(weight_dtype)
+        clip_disc=ClipDiscriminator(args.clip_classification_type,args.random_init,accelerator.device).to(weight_dtype)
         optimizerD = torch.optim.Adam(clip_disc.parameters(), lr=args.nlr, betas=(args.nbeta1, 0.999))
 
         def get_clip_score(image:Image.Image):

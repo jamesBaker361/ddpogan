@@ -3,6 +3,7 @@ from transformers.models.clip.image_processing_clip import CLIPImageProcessor
 from torch import nn,Tensor
 from PIL import Image
 from typing import List, Union
+from static_globals import *
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -15,7 +16,7 @@ def weights_init(m):
     
 
 class ClipDiscriminator(nn.Module):
-    def __init__(self, random_init:bool=False,device:str="cpu" ) -> None:
+    def __init__(self,classification_type:str, random_init:bool=False,device:str="cpu" ) -> None:
         super().__init__()
         self.vision_model=CLIPVisionModelWithProjection.from_pretrained("openai/clip-vit-large-patch14").to(device)
         self.device=device
@@ -23,20 +24,32 @@ class ClipDiscriminator(nn.Module):
         if random_init:
             self.vision_model.apply(weights_init)
         
-        self.classification_head=nn.Sequential(
-            nn.Linear(self.vision_model.config.projection_dim,512),
-            nn.LayerNorm(512),
-            nn.LeakyReLU(),
-            nn.Linear(512,256),
-            nn.LayerNorm(256),
-            nn.LeakyReLU(),
-            nn.Linear(256,128),
-            nn.LayerNorm(128),
-            nn.LeakyReLU(),
-            nn.Linear(128,64),
-            nn.LayerNorm(64),
-            nn.LeakyReLU(),
-            nn.Linear(64,1))
+        if classification_type==LAYERNORM:
+            self.classification_head=nn.Sequential(
+                nn.Linear(self.vision_model.config.projection_dim,512),
+                nn.LayerNorm(512),
+                nn.LeakyReLU(),
+                nn.Linear(512,256),
+                nn.LayerNorm(256),
+                nn.LeakyReLU(),
+                nn.Linear(256,128),
+                nn.LayerNorm(128),
+                nn.LeakyReLU(),
+                nn.Linear(128,64),
+                nn.LayerNorm(64),
+                nn.LeakyReLU(),
+                nn.Linear(64,1))
+        elif classification_type==DROPOUT:
+            self.classification_head=nn.Sequential(
+                nn.Linear(self.vision_model.config.projection_dim,512),
+                nn.Dropout(0.2),
+                nn.Linear(512,256),
+                nn.Dropout(0.2),
+                nn.Linear(256,128),
+                nn.Dropout(0.2),
+                nn.Linear(128,64),
+                nn.Dropout(0.2),
+                nn.Linear(64,1))
         self.classification_head=self.classification_head.to(device)
         print("model.hidden_size",self.vision_model.config.projection_dim )
 
