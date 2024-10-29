@@ -298,7 +298,7 @@ def main(args):
                     composed_trans=transforms.Compose([transforms.RandomHorizontalFlip(), transforms.RandomCrop((args.image_size*7)//8)])
                     real_images=[composed_trans(ri) for ri in real_images]
                     predictions_real=clip_disc(real_images)
-                    print("pred real", predictions_real)
+                    #print("pred real", predictions_real)
                     real_labels=0.95 * torch.ones(predictions_real.size()).to(accelerator.device,dtype=weight_dtype)+torch.normal(0,0.05,predictions_real.size()).to(accelerator.device,dtype=weight_dtype)
 
                     err_dr=torch.nn.functional.mse_loss(real_labels, predictions_real)
