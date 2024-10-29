@@ -27,6 +27,7 @@ parser=argparse.ArgumentParser()
 
 parser.add_argument("--mixed_precision",type=str,default="no")
 parser.add_argument("--style_list",nargs="*")
+parser.add_argument("--limit",type=int,default=10000)
 parser.add_argument("--project_name",type=str,default="ddpogan")
 parser.add_argument("--dataset",type=str,default="jlbaker361/new_league_data_max_plus")
 parser.add_argument("--hf_repo",type=str,default="jlbaker361/ddpo-gan")
@@ -90,8 +91,11 @@ def main(args):
         image_list=[row["image"].resize((args.image_size,args.image_size)) for row in data if row["style"] in args.style_list]
     else:
         image_list=[row["splash"].resize((args.image_size,args.image_size)) for row in data]
-    print(f"selected {len(image_list)}/ {len(data)}")
     random.shuffle(image_list)
+    print(f"selected {len(image_list)}/ {len(data)}")
+    image_list=image_list[:args.limit]
+    print(f"selected {len(image_list)}/ {len(data)}")
+    
     if args.use_proto_discriminator:
 
         proto_discriminator=Discriminator(64,3,args.image_size,args.disc_batch_size)
