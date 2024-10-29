@@ -10,6 +10,8 @@ import torch
 from experiment_helpers.better_ddpo_pipeline import BetterDefaultDDPOStableDiffusionPipeline
 from experiment_helpers.better_ddpo_trainer import BetterDDPOTrainer,get_image_sample_hook
 from experiment_helpers.training import train_unet, train_unet_single_prompt
+from experiment_helpers.better_vit_model import BetterViTModel
+from experiment_helpers.measuring import get_vit_embeddings,get_metric_dict,AESTHETIC_SCORE,IMAGE_REWARD
 from trl import DDPOConfig
 from PIL import Image
 from torchvision import transforms
@@ -22,6 +24,26 @@ from safetensors.torch import save_model
 from clip_discriminator import ClipDiscriminator
 import numpy as np
 import random
+from transformers import CLIPProcessor, CLIPModel,ViTImageProcessor
+
+
+import numpy as np
+from scipy.stats import wasserstein_distance
+from sklearn.metrics import pairwise_kernels
+
+# Example: Gaussian Kernel for MMD calculation
+def compute_mmd(X, Y, kernel="rbf", gamma=0.5):
+    """Calculates Maximum Mean Discrepancy (MMD) between two samples X and Y."""
+    XX = pairwise_kernels(X, X, metric=kernel, gamma=gamma)
+    YY = pairwise_kernels(Y, Y, metric=kernel, gamma=gamma)
+    XY = pairwise_kernels(X, Y, metric=kernel, gamma=gamma)
+    return XX.mean() + YY.mean() - 2 * XY.mean()
+
+# Wasserstein distance on sample sets
+def average_wasserstein_distance(list1, list2):
+    """Computes average Wasserstein distance between two sample sets."""
+    distances = [wasserstein_distance(u, v) for u, v in zip(list1, list2)]
+    return np.mean(distances)
 
 parser=argparse.ArgumentParser()
 
@@ -376,6 +398,36 @@ def main(args):
 
     #evaluation: find most similar image in dataset and compare clip/vit/content/style similarities
     #evaluation: find average clip/style/similarities
+    vit_processor=ViTImageProcessor.from_pretrained("facebook/dino-vits16")
+    vit_model=BetterViTModel.from_pretrained("facebook/dino-vits16").eval()
+
+    real_vit_embedding_list,real_vit_style_embedding_list, real_vit_content_embedding_list=get_vit_embeddings(vit_processor, vit_model, image_list)
+    fake_vit_embedding_list,fake_vit_style_embedding_list, fake_vit_content_embedding_list=get_vit_embeddings(vit_processor, vit_model, evaluation_image_list)
+    for [real,fake,name] in [
+        [real_vit_embedding_list, fake_vit_embedding_list,"vit"],
+        [real_vit_style_embedding_list, fake_vit_style_embedding_list,"vit_style"],
+        [real_vit_content_embedding_list, fake_vit_content_embedding_list,"vit_content"]
+
+    ]:
+        mmd=compute_mmd(real,fake)
+        wass=average_wasserstein_distance(real,fake)
+        results={
+            f"wass_{name}":wass,
+            f"mmd_{name}":mmd
+        }
+        print(results)
+        accelerator.log(results)
+    evaluation_prompt_list=[s for s in evaluation_prompt_list for _ in range(n)]
+    metric_dict=get_metric_dict(evaluation_prompt_list,evaluation_image_list,image_list)
+    for metric in [AESTHETIC_SCORE,IMAGE_REWARD]:
+        print(metric,metric_dict[metric])
+        accelerator.log({
+            metric:metric_dict[metric]
+        })
+
+
+
+
 
 if __name__=='__main__':
     print_details()
